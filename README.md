@@ -1,129 +1,102 @@
-DBT Awareness & Verification Portal (SIH 2025 Prototype)
+📌 DBT AWARENESS & VERIFICATION PORTAL
+SMART INDIA HACKATHON (SIH) 2025 — OFFICIAL PROTOTYPE
+<p align="center"> <img src="https://img.shields.io/badge/STATUS-IN%20DEVELOPMENT-blue" /> <img src="https://img.shields.io/badge/FRAMEWORK-React.js-green" /> <img src="https://img.shields.io/badge/BACKEND-Node.js-yellow" /> <img src="https://img.shields.io/badge/DATABASE-MongoDB-brightgreen" /> <img src="https://img.shields.io/badge/PROJECT-TYPE:%20SIH%20Prototype-purple" /> </p>
+🚀 PROJECT OVERVIEW
 
-A modern, multilingual, awareness-driven web platform designed for students, colleges, and Gram Panchayat officers to learn, verify, monitor, and track Direct Benefit Transfer (DBT) readiness.
+DBT Awareness & Verification Portal is a multilingual, modern, awareness-driven web system designed to help:
 
-This portal is built as a Smart India Hackathon (SIH) 2025 prototype, addressing the problem of low awareness and delayed scholarship disbursal due to incomplete Aadhaar seeding, bank issues, or DBT mismatch.
+Students understand DBT and verify Aadhaar–bank seeding
 
-🌟 Project Overview
+Colleges monitor student readiness
 
-The platform aims to create a complete awareness ecosystem for DBT by integrating:
+Panchayat Officers conduct and track DBT awareness drives
 
-Student awareness & learning modules
+Administrators view analytics, progress reports & district scoreboards
 
-Self-verification of DBT readiness using mock PFMS data
+This project is built as a part of the Smart India Hackathon 2025.
 
-Dashboards for colleges & local Panchayat bodies
+🎯 FEATURES
+1️⃣ AWARENESS & EDUCATION
 
-Analytics & transparency reports
+Animated explainers: What is DBT?
 
-Local language support for better adoption
+Language toggle (Hindi + Regional)
 
-🧩 Key Features
-1. Awareness & Education Module
+Downloadable posters & awareness kits
 
-Animated explainers: What is DBT?, Why does money not come sometimes?
+Student quiz → Earn DBT-Smart Badge
 
-Local language toggle (Hindi & regional languages)
+“Know Your Bank” comparison chart
 
-Downloadable posters, pamphlets & awareness kits
+2️⃣ STUDENT SELF-VERIFICATION TOOL
 
-Student quiz → earn “DBT-Smart Badge”
+Enter name, bank, last four digits
 
-Interactive “Know Your Bank” chart based on user reports
+Upload Aadhaar seeding proof (optional)
 
-2. Student Self-Verification Tool
+Uses mock PFMS-like data
 
-Enter name, bank name, last 4 digits of account
-
-Optional upload: Aadhaar seeding proof screenshot
-
-System evaluates using mock/placeholder PFMS-style data
-
-Output:
+Shows:
 
 🟢 DBT-Enabled
 
 🔴 Not Yet Enabled
 
-Shows next-step guidance
+Clear next-step guidance
 
-3. College Dashboard
+3️⃣ COLLEGE DASHBOARD
 
-Secure login for institutions
+Secure admin login
 
-View registered students + DBT readiness
+View student DBT readiness
 
-Upload CSV after verification camps
+Upload CSV post-verification camps
 
-Awareness performance reports
+Awareness report generation
 
-Access training material & posters
+Access teaching material
 
-4. Panchayat / Local Admin Dashboard
+4️⃣ PANCHAYAT DASHBOARD
 
-Ward/village-wise student view
+Village/ward-wise student view
 
-Schedule DBT-Aadhaar awareness camps
+Schedule DBT awareness camps
 
-Print attendance sheets
+Upload photos & attendance
 
-Upload photos & records of awareness sessions
+Map view: DBT-enabled % by village
 
-Map view: DBT readiness % by village
+5️⃣ ANALYTICS & TRANSPARENCY
 
-5. Analytics & Transparency
+District-wise DBT Awareness Scoreboard
 
-State/district-wise DBT awareness scoreboard
-
-Bank-wise average disbursal time
+Bank-wise disbursal time charts
 
 Top performing Panchayats
 
-Number of awareness sessions conducted
+Awareness sessions conducted
 
-Downloadable PDF analytics report
+PDF report download
 
-🏗️ Tech Stack
-Layer	Technology
-Frontend	React.js / HTML-CSS-JS prototype
-Backend	Node.js + Express OR FastAPI
-Database	MongoDB
-Charts	Chart.js / Recharts
-Hosting	Render / Vercel / Netlify
-Multilingual	i18next / Client-side language packs
-🔐 Privacy & Security
+🧰 TECH STACK
+Frontend  : React.js / HTML-CSS-JS (Prototype)  
+Backend   : Node.js + Express  
+Database  : MongoDB  
+Charts    : Chart.js / Recharts  
+Hosting   : Netlify / Render  
+Language  : i18next / Multi-language support  
 
-This prototype does NOT use real Aadhaar or banking data.
-We use:
+🔐 PRIVACY & DATA SAFETY
 
-Mock student data
+✔ No real Aadhaar / bank data used
+✔ Only mock student records
+✔ Account numbers masked like XXXX1234
+✔ Static simulation of verification flow
 
-Masked account numbers (e.g., XXXX1234)
-
-Static simulation of PFMS-style verification
-
-This ensures the project is demo-safe and compliant with SIH rules.
-
-🚀 How to Run the Project
-1. Clone the Repository
-git clone https://github.com/your-username/dbt-awareness-portal.git
-cd dbt-awareness-portal
-
-2. Install Dependencies
-npm install
-
-3. Start Development Server
-npm start
-
-4. Build for Production
-npm run build
-
-📂 Project Structure
+📁 PROJECT STRUCTURE
 /src
   /components
   /pages
-  /dashboard
-  /analytics
   /assets
   /mock-data
 backend/
