@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Building2 } from 'lucide-react';
 
-export default function InstitutionLoginPage({ onLoginSuccess, onBack }: { onLoginSuccess: () => void; onBack: () => void }) {
+export default function InstitutionLoginPage({ onLoginSuccess, onBack, onNavigate }: { onLoginSuccess: () => void; onBack: () => void; onNavigate: (page: string) => void }) {
   const [institutionId, setInstitutionId] = useState('');
   const [password, setPassword] = useState('');
 
@@ -76,6 +76,15 @@ export default function InstitutionLoginPage({ onLoginSuccess, onBack }: { onLog
                 <Button type="submit">Login</Button>
               </div>
             </form>
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                className="text-blue-600 hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                onClick={() => onNavigate('institution-registration')}
+              >
+                Register Yourself
+              </button>
+            </div>
           </CardContent>
         </Card>
 

@@ -22,7 +22,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PanchayatDashboardProps {
-  onNavigate: (page: 'landing') => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function PanchayatDashboard({ onNavigate }: PanchayatDashboardProps) {

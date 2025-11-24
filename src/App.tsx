@@ -17,6 +17,9 @@ import StudentLoginPage from "./components/pages/StudentLoginPage";
 import InstitutionLoginPage from "./components/pages/InstitutionLoginPage";
 import PanchayatLoginPage from "./components/pages/PanchayatLoginPage";
 import AdminLoginPage from "./components/pages/AdminLoginPage";
+import StudentRegistrationPage from "./components/pages/StudentRegistrationPage";
+import InstitutionRegistrationPage from "./components/pages/InstitutionRegistrationPage";
+import PanchayatRegistrationPage from "./components/pages/PanchayatRegistrationPage";
 
 type PageType =
   | "home"
@@ -32,7 +35,10 @@ type PageType =
   | "student-login"
   | "institution-login"
   | "panchayat-login"
-  | "admin-login";
+  | "admin-login"
+  | "student-registration"
+  | "institution-registration"
+  | "panchayat-registration";
 
 export default function App() {
   const [currentPage, setCurrentPage] =
@@ -86,16 +92,25 @@ export default function App() {
             <AdminDashboard onNavigate={navigateTo} />
           )}
           {currentPage === "student-login" && (
-            <StudentLoginPage onLoginSuccess={() => navigateTo("student")} onBack={() => navigateTo("landing")} />
+            <StudentLoginPage onLoginSuccess={() => navigateTo("student")} onBack={() => navigateTo("landing")} onNavigate={navigateTo} />
           )}
           {currentPage === "institution-login" && (
-            <InstitutionLoginPage onLoginSuccess={() => navigateTo("institution")} onBack={() => navigateTo("landing")} />
+            <InstitutionLoginPage onLoginSuccess={() => navigateTo("institution")} onBack={() => navigateTo("landing")} onNavigate={navigateTo} />
           )}
           {currentPage === "panchayat-login" && (
-            <PanchayatLoginPage onLoginSuccess={() => navigateTo("panchayat")} onBack={() => navigateTo("landing")} />
+            <PanchayatLoginPage onLoginSuccess={() => navigateTo("panchayat")} onBack={() => navigateTo("landing")} onNavigate={navigateTo} />
           )}
           {currentPage === "admin-login" && (
             <AdminLoginPage onLoginSuccess={() => navigateTo("admin")} onBack={() => navigateTo("landing")} />
+          )}
+          {currentPage === "student-registration" && (
+            <StudentRegistrationPage />
+          )}
+          {currentPage === "institution-registration" && (
+            <InstitutionRegistrationPage />
+          )}
+          {currentPage === "panchayat-registration" && (
+            <PanchayatRegistrationPage />
           )}
 
           {showHeaderFooter && <Footer />}
