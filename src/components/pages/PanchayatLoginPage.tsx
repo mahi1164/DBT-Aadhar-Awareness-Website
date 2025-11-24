@@ -24,12 +24,19 @@ export default function PanchayatLoginPage({ onLoginSuccess, onBack }: { onLogin
     "Log out after each session to ensure the security of the portal."
   ];
 
+  // Function to mask Panchayat ID, showing first 3 and last 2 characters only
+  const maskedPanchayatId = (id: string) => {
+    if (!id) return '-';
+    if (id.length <= 5) return id;
+    return id.slice(0, 3) + '***' + id.slice(-2);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-8 flex items-center justify-center">
-      <div className="w-full max-w-sm mx-auto">
-        {/* Left Column: Login Form */}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 sm:p-12 flex items-center justify-center">
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* LEFT: FORM */}
         <Card className="w-full">
-          <CardHeader className="text-center">
+          <CardHeader>
             <div className="mx-auto bg-green-100 text-green-600 p-4 rounded-full w-fit mb-4">
               <Home className="w-10 h-10" />
             </div>
@@ -38,6 +45,7 @@ export default function PanchayatLoginPage({ onLoginSuccess, onBack }: { onLogin
               Organize awareness camps and track village-level progress.
             </CardDescription>
           </CardHeader>
+
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-6">
               <div className="space-y-2">
@@ -62,7 +70,7 @@ export default function PanchayatLoginPage({ onLoginSuccess, onBack }: { onLogin
                   required
                 />
               </div>
-              <div className="flex items-center justify-between pt-2">
+              <div className="flex items-center justify-between pt-4">
                 <Button type="button" variant="ghost" onClick={onBack}>Back</Button>
                 <a href="#" className="text-sm text-blue-600 hover:underline">Forgot Password?</a>
                 <Button type="submit">Login</Button>
@@ -71,14 +79,47 @@ export default function PanchayatLoginPage({ onLoginSuccess, onBack }: { onLogin
           </CardContent>
         </Card>
 
-        {/* Right Column: Login Tips */}
-        <div className="hidden lg:block p-6">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Panchayat Login Tips</h3>
-          <ul className="list-disc list-inside space-y-4 text-gray-600 dark:text-gray-400">
-            {loginTips.map((tip, index) => (
-              <li key={index}>{tip}</li>
-            ))}
-          </ul>
+        {/* RIGHT: LIVE PREVIEW + TIPS */}
+        <div className="flex flex-col gap-6">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Live Preview</CardTitle>
+              <CardDescription>Realtime view of the login details (for demo only)</CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center text-2xl font-bold text-green-700">
+                  {panchayatId ? panchayatId.slice(0,1).toUpperCase() : 'P'}
+                </div>
+
+                <div className="flex-1">
+                  <div className="text-sm text-slate-500">Login Type</div>
+                  <div className="font-medium text-slate-800">Panchayat ID</div>
+
+                  <div className="mt-3 text-sm text-slate-500">Panchayat ID (masked)</div>
+                  <div className="font-mono font-medium text-slate-800">{maskedPanchayatId(panchayatId)}</div>
+
+                  <div className="mt-3 text-sm text-slate-500">Password</div>
+                  <div className="font-medium text-slate-800">{password ? '*'.repeat(password.length) : '-'}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Panchayat Login Tips */}
+          <Card className="hidden lg:block">
+            <CardHeader>
+              <CardTitle>Gram Panchayat Login Tips</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className="list-decimal list-inside space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                {loginTips.map((tip, i) => (
+                  <li key={i}>{tip}</li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
