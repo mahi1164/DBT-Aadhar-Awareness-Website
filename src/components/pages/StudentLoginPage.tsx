@@ -9,6 +9,7 @@ import { RefreshCw } from 'lucide-react';
 type Props = {
   onLoginSuccess: () => void;
   onBack: () => void;
+  onNavigate: (page: string) => void;
 };
 
 // Helper function to generate a random string for CAPTCHA
@@ -16,7 +17,7 @@ const generateCaptcha = () => {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 
-export default function StudentLoginPage({ onLoginSuccess, onBack }: Props) {
+export default function StudentLoginPage({ onLoginSuccess, onBack, onNavigate }: Props) {
   const [captcha, setCaptcha] = useState(generateCaptcha());
   const [aadhaar, setAadhaar] = useState('');
   const [otp, setOtp] = useState('');
@@ -69,14 +70,18 @@ export default function StudentLoginPage({ onLoginSuccess, onBack }: Props) {
             <CardTitle>Application Login</CardTitle>
             <CardDescription>
               New user?{' '}
-              <a href="#" className="text-blue-600 hover:underline">
+              <button
+                type="button"
+                className="text-blue-600 hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                onClick={() => onNavigate('student-registration')}
+              >
                 Register yourself
-              </a>
+              </button>
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'aadhaar' | 'otr')}>
+              <Tabs value={tabValue} onValueChange={(v: string) => setTabValue(v as 'aadhaar' | 'otr')}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="aadhaar">Login with Aadhaar</TabsTrigger>
                 <TabsTrigger value="otr">Login with OTR</TabsTrigger>

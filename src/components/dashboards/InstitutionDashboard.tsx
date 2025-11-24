@@ -23,7 +23,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 interface InstitutionDashboardProps {
-  onNavigate: (page: 'landing') => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function InstitutionDashboard({ onNavigate }: InstitutionDashboardProps) {
