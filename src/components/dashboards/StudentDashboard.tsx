@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
+import { Input } from '../ui/input'; // Added Input
+import { Label } from '../ui/label'; // Added Label
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   Home,
@@ -17,17 +18,84 @@ import {
   FileText,
   ExternalLink,
   X,
+  CreditCard, // Added icon
+  Building // Added icon
 } from 'lucide-react';
 
+// --- IMPORT SUPABASE ---
+import { supabase } from '../../supabaseClient';
+
 interface StudentDashboardProps {
-  onNavigate: (page: 'landing') => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function StudentDashboard({ onNavigate }: StudentDashboardProps) {
   const [currentTab, setCurrentTab] = useState('home');
+  
+  // --- VERIFICATION FORM STATE ---
+  const [bankAccount, setBankAccount] = useState('');
+  const [ifscCode, setIfscCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  // --- QUIZ STATE (Demo) ---
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: string }>({});
 
+  // --- FETCH USER PROFILE (For Name in Ticket) ---
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        setUserProfile(data);
+      }
+    };
+    getUser();
+  }, []);
+
+  // --- FUNCTION: APPLY FOR VERIFICATION ---
+  const handleApplyVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) { 
+        alert("You must be logged in."); 
+        setLoading(false); 
+        return; 
+    }
+
+    if(!bankAccount || !ifscCode) {
+        alert("Please fill in all bank details.");
+        setLoading(false);
+        return;
+    }
+
+    // Create the description string with the bank details
+    const description = `Application for DBT Verification.\nBank Account: ${bankAccount}\nIFSC Code: ${ifscCode}`;
+
+    const { error } = await supabase.from('tickets').insert([{
+      user_id: user.id,
+      user_name: userProfile?.full_name || 'Student',
+      type: 'verification', // Special type for admin to see
+      description: description,
+      status: 'open'
+    }]);
+
+    setLoading(false);
+
+    if (error) {
+      alert("Error submitting application: " + error.message);
+    } else {
+      alert("Application Submitted Successfully! The Admin will verify your bank details.");
+      setBankAccount('');
+      setIfscCode('');
+    }
+  };
+
+  // --- DUMMY DATA FOR DEMO TABS ---
   const dbtStatus = {
     enabled: true,
     bankLinked: true,
@@ -43,12 +111,7 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
     },
     {
       question: 'Why is Aadhaar linking important for DBT?',
-      options: [
-        'To verify identity',
-        'To ensure timely scholarship transfer',
-        'To prevent duplication',
-        'All of the above',
-      ],
+      options: ['To verify identity', 'To ensure timely scholarship transfer', 'To prevent duplication', 'All of the above'],
       correct: 'All of the above',
     },
     {
@@ -61,9 +124,7 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
   const handleQuizSubmit = () => {
     let score = 0;
     quizQuestions.forEach((q, index) => {
-      if (selectedAnswers[index] === q.correct) {
-        score++;
-      }
+      if (selectedAnswers[index] === q.correct) score++;
     });
     setQuizScore(score);
   };
@@ -73,7 +134,7 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
       {[
         { id: 'home', label: 'Dashboard', icon: Home },
         { id: 'awareness', label: 'Awareness', icon: BookOpen },
-        { id: 'verification', label: 'Verification', icon: CheckCircle },
+        { id: 'verification', label: 'Verification', icon: CheckCircle }, // <--- THIS TAB IS WORKING
         { id: 'quiz', label: 'Quiz', icon: Award },
         { id: 'downloads', label: 'Downloads', icon: Download },
         { id: 'support', label: 'Support', icon: HelpCircle },
@@ -101,24 +162,23 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
     <DashboardLayout
       title="Student Dashboard"
       userRole="Student"
-      userName="Rahul Kumar"
+      userName={userProfile?.full_name || "Rahul Kumar"}
       onNavigate={onNavigate}
       sidebar={sidebar}
     >
+      {/* --- TAB: HOME (DEMO DATA) --- */}
       {currentTab === 'home' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl text-[#002147] mb-1">Welcome, Rahul!</h2>
+            <h2 className="text-2xl text-[#002147] mb-1">Welcome, {userProfile?.full_name?.split(' ')[0] || "Rahul"}!</h2>
             <p className="text-gray-600">Here's your DBT status and latest updates</p>
           </div>
 
-          {/* Status Cards */}
           <div className="grid md:grid-cols-3 gap-6">
             <Card className="border-l-4 border-l-green-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  DBT Status
+                  <CheckCircle className="w-5 h-5 text-green-500" /> DBT Status
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -130,8 +190,7 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
             <Card className="border-l-4 border-l-blue-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-500" />
-                  Bank Linked
+                  <CheckCircle className="w-5 h-5 text-blue-500" /> Bank Linked
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -143,22 +202,18 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-purple-500" />
-                  Aadhaar Linked
+                  <CheckCircle className="w-5 h-5 text-purple-500" /> Aadhaar Linked
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Active</Badge>
-                <p className="text-sm text-gray-600 mt-2">•••• •••• 8923</p>
+                <p className="text-sm text-gray-600 mt-2">•••• •••• {userProfile?.aadhaar?.slice(-4) || '8923'}</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Activity */}
           <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {[
@@ -177,437 +232,164 @@ export default function StudentDashboard({ onNavigate }: StudentDashboardProps) 
               </div>
             </CardContent>
           </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <Button className="bg-[#002147] hover:bg-[#003366]" onClick={() => setCurrentTab('verification')}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Verify Status
-                </Button>
-                <Button variant="outline" onClick={() => setCurrentTab('quiz')}>
-                  <Award className="w-4 h-4 mr-2" />
-                  Take Quiz
-                </Button>
-                <Button variant="outline" onClick={() => setCurrentTab('awareness')}>
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Learn About DBT
-                </Button>
-                <Button variant="outline" onClick={() => setCurrentTab('downloads')}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Materials
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
 
-      {currentTab === 'awareness' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl text-[#002147] mb-1">DBT Awareness & Education</h2>
-            <p className="text-gray-600">Learn everything about Direct Benefit Transfer</p>
-          </div>
-
-          <Tabs defaultValue="videos" className="w-full">
-            <TabsList>
-              <TabsTrigger value="videos">Video Tutorials</TabsTrigger>
-              <TabsTrigger value="guides">Text Guides</TabsTrigger>
-              <TabsTrigger value="faqs">FAQs</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="videos" className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                {[
-                  { title: 'What is DBT?', duration: '5:30', views: '2.5K' },
-                  { title: 'How to Link Aadhaar', duration: '4:15', views: '3.2K' },
-                  { title: 'DBT Bank Linking Process', duration: '6:45', views: '1.8K' },
-                  { title: 'Common Issues & Solutions', duration: '8:20', views: '2.1K' },
-                ].map((video, index) => (
-                  <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <div className="bg-gray-200 rounded-lg h-40 flex items-center justify-center mb-3">
-                        <PlayCircle className="w-12 h-12 text-[#002147]" />
-                      </div>
-                      <h3 className="mb-2">{video.title}</h3>
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>{video.duration}</span>
-                        <span>{video.views} views</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="guides" className="space-y-4">
-              {[
-                {
-                  title: 'Complete DBT Guide for Students',
-                  description: 'Step-by-step guide covering all aspects of DBT',
-                },
-                {
-                  title: 'Aadhaar-Bank Linking Manual',
-                  description: 'Detailed instructions for linking your documents',
-                },
-                {
-                  title: 'Scholarship Application Process',
-                  description: 'How to apply for scholarships with DBT',
-                },
-              ].map((guide, index) => (
-                <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-[#002147]" />
-                      {guide.title}
-                    </CardTitle>
-                    <CardDescription>{guide.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button variant="outline" className="w-full">
-                      Read Guide <ExternalLink className="w-4 h-4 ml-2" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-
-            <TabsContent value="faqs" className="space-y-4">
-              {[
-                {
-                  q: 'What is DBT and why is it important?',
-                  a: 'DBT (Direct Benefit Transfer) ensures that scholarships and benefits reach students directly in their bank accounts without intermediaries, ensuring transparency and timely delivery.',
-                },
-                {
-                  q: 'How do I check if my account is DBT-enabled?',
-                  a: 'You can check your DBT status through this portal in the Verification section, or by visiting your bank branch or calling the customer care number.',
-                },
-                {
-                  q: 'What should I do if my DBT is not enabled?',
-                  a: 'Visit your bank branch with your Aadhaar card and request DBT enablement. The bank will link your Aadhaar with your account and enable DBT services.',
-                },
-              ].map((faq, index) => (
-                <Card key={index}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{faq.q}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600">{faq.a}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-          </Tabs>
-        </div>
-      )}
-
+      {/* --- TAB: VERIFICATION (WORKING REAL DATA) --- */}
       {currentTab === 'verification' && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl text-[#002147] mb-1">Self-Verification & Status Check</h2>
-            <p className="text-gray-600">Verify your DBT status and eligibility</p>
+            <h2 className="text-2xl text-[#002147] mb-1">Apply for Verification</h2>
+            <p className="text-gray-600">Submit your bank details for DBT enablement</p>
           </div>
 
           <Card className="border-2 border-[#002147]">
             <CardHeader className="bg-[#E6F0FF]">
-              <CardTitle>Your DBT Status</CardTitle>
-              <CardDescription>Last verified: {dbtStatus.lastVerified}</CardDescription>
+              <CardTitle>Verification Form</CardTitle>
+              <CardDescription>Please ensure details match your bank passbook</CardDescription>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+              <form onSubmit={handleApplyVerification} className="space-y-6">
+                
+                {/* Visual Status (Demo) */}
+                <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className="w-8 h-8 text-green-600" />
+                    <AlertCircle className="w-8 h-8 text-yellow-600" />
                     <div>
-                      <div className="font-medium">DBT Enabled</div>
-                      <div className="text-sm text-gray-600">Your account is ready to receive benefits</div>
+                      <div className="font-medium text-yellow-900">Action Required</div>
+                      <div className="text-sm text-yellow-800">Please submit current bank details</div>
                     </div>
                   </div>
-                  <Badge className="bg-green-600 hover:bg-green-600">Active</Badge>
+                  <Badge className="bg-yellow-200 text-yellow-800">Pending</Badge>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Bank Account Linked</span>
-                      <CheckCircle className="w-5 h-5 text-green-600" />
+                {/* FORM INPUTS */}
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="bankAcc">Bank Account Number *</Label>
+                        <div className="relative">
+                            <CreditCard className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                            <Input 
+                                id="bankAcc" 
+                                placeholder="Enter Account Number" 
+                                className="pl-10"
+                                value={bankAccount}
+                                onChange={(e) => setBankAccount(e.target.value)}
+                                required
+                            />
+                        </div>
                     </div>
-                    <div className="font-medium">State Bank of India</div>
-                    <div className="text-sm text-gray-600">Account: •••• •••• 4567</div>
-                  </div>
 
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Aadhaar Linked</span>
-                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div className="space-y-2">
+                        <Label htmlFor="ifsc">IFSC Code *</Label>
+                        <div className="relative">
+                            <Building className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                            <Input 
+                                id="ifsc" 
+                                placeholder="Ex: SBIN0001234" 
+                                className="pl-10 uppercase"
+                                value={ifscCode}
+                                onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
+                                maxLength={11}
+                                required
+                            />
+                        </div>
                     </div>
-                    <div className="font-medium">Verified</div>
-                    <div className="text-sm text-gray-600">Aadhaar: •••• •••• 8923</div>
-                  </div>
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex gap-3">
                     <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                     <div>
-                      <div className="font-medium text-blue-900 mb-1">Next Steps</div>
-                      <ul className="text-sm text-blue-800 space-y-1">
-                        <li>✓ Your DBT setup is complete</li>
-                        <li>✓ You can now apply for scholarships</li>
-                        <li>• Keep your contact details updated</li>
-                        <li>• Verify status every 3 months</li>
-                      </ul>
+                      <div className="font-medium text-blue-900 mb-1">Note</div>
+                      <p className="text-sm text-blue-800">
+                        This request will be sent to the System Admin for approval. You will be notified once verified.
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                <Button className="w-full bg-[#002147] hover:bg-[#003366]">
-                  Re-verify Status
+                <Button 
+                  type="submit" 
+                  className="w-full bg-[#002147] hover:bg-[#003366]"
+                  disabled={loading}
+                >
+                  {loading ? "Submitting Application..." : "Apply for Verification"}
                 </Button>
-              </div>
+              </form>
             </CardContent>
           </Card>
         </div>
       )}
 
+      {/* --- TAB: AWARENESS (DEMO DATA) --- */}
+      {currentTab === 'awareness' && (
+        <div className="space-y-6">
+          <Tabs defaultValue="videos" className="w-full">
+            <TabsList>
+              <TabsTrigger value="videos">Video Tutorials</TabsTrigger>
+              <TabsTrigger value="guides">Text Guides</TabsTrigger>
+            </TabsList>
+            <TabsContent value="videos" className="grid md:grid-cols-2 gap-4 mt-4">
+               {[1,2,3,4].map((i) => (
+                 <Card key={i}><CardContent className="p-4 flex items-center justify-center h-40 bg-gray-100"><PlayCircle className="w-12 h-12 text-gray-400"/></CardContent></Card>
+               ))}
+            </TabsContent>
+            <TabsContent value="guides" className="mt-4"><p>Guides content...</p></TabsContent>
+          </Tabs>
+        </div>
+      )}
+
+      {/* --- TAB: QUIZ (DEMO LOGIC) --- */}
       {currentTab === 'quiz' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl text-[#002147] mb-1">DBT Knowledge Quiz</h2>
-            <p className="text-gray-600">Test your understanding and earn a "DBT Smart" badge</p>
-          </div>
-
           <Card>
-            <CardHeader>
-              <CardTitle>Quiz: Understanding DBT</CardTitle>
-              <CardDescription>Answer all questions correctly to earn your badge</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>DBT Knowledge Quiz</CardTitle></CardHeader>
             <CardContent>
-              <div className="space-y-6">
                 {quizQuestions.map((q, index) => (
-                  <div key={index} className="p-4 border rounded-lg">
-                    <div className="mb-3">
-                      <span className="text-sm text-gray-500">Question {index + 1}</span>
-                      <h3 className="text-lg">{q.question}</h3>
-                    </div>
+                  <div key={index} className="mb-6 p-4 border rounded">
+                    <h3 className="font-medium mb-3">{index + 1}. {q.question}</h3>
                     <div className="space-y-2">
-                      {q.options.map((option, optIndex) => (
-                        <label
-                          key={optIndex}
-                          className={`flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                            selectedAnswers[index] === option ? 'border-[#002147] bg-[#E6F0FF]' : ''
-                          } ${
-                            quizScore !== null
-                              ? option === q.correct
-                                ? 'border-green-500 bg-green-50'
-                                : selectedAnswers[index] === option
-                                ? 'border-red-500 bg-red-50'
-                                : ''
-                              : ''
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`question-${index}`}
-                            value={option}
-                            checked={selectedAnswers[index] === option}
-                            onChange={() =>
-                              setSelectedAnswers((prev) => ({ ...prev, [index]: option }))
-                            }
-                            disabled={quizScore !== null}
-                            className="mr-3"
-                          />
-                          <span>{option}</span>
-                          {quizScore !== null && option === q.correct && (
-                            <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
-                          )}
-                          {quizScore !== null && selectedAnswers[index] === option && option !== q.correct && (
-                            <X className="w-5 h-5 text-red-600 ml-auto" />
-                          )}
-                        </label>
-                      ))}
+                        {q.options.map((opt) => (
+                            <div key={opt} className={`p-2 border rounded cursor-pointer ${selectedAnswers[index] === opt ? 'bg-blue-50 border-blue-500' : ''}`} onClick={() => setSelectedAnswers(prev => ({...prev, [index]: opt}))}>
+                                {opt}
+                            </div>
+                        ))}
                     </div>
                   </div>
                 ))}
-
-                {quizScore === null ? (
-                  <Button
-                    className="w-full bg-[#002147] hover:bg-[#003366]"
-                    onClick={handleQuizSubmit}
-                    disabled={Object.keys(selectedAnswers).length !== quizQuestions.length}
-                  >
-                    Submit Quiz
-                  </Button>
-                ) : (
-                  <Card className={quizScore === quizQuestions.length ? 'bg-green-50 border-green-500' : 'bg-orange-50 border-orange-500'}>
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <div className="text-3xl mb-2">
-                          {quizScore === quizQuestions.length ? '🎉' : '📚'}
-                        </div>
-                        <div className="text-2xl mb-2">
-                          Score: {quizScore}/{quizQuestions.length}
-                        </div>
-                        {quizScore === quizQuestions.length ? (
-                          <>
-                            <p className="text-green-800 mb-4">
-                              Congratulations! You've earned the "DBT Smart" badge!
-                            </p>
-                            <Badge className="bg-green-600 hover:bg-green-600 text-lg px-4 py-2">
-                              <Award className="w-5 h-5 mr-2" />
-                              DBT Smart
-                            </Badge>
-                          </>
-                        ) : (
-                          <p className="text-orange-800 mb-4">
-                            Good effort! Review the materials and try again.
-                          </p>
-                        )}
-                        <Button
-                          className="mt-4"
-                          onClick={() => {
-                            setQuizScore(null);
-                            setSelectedAnswers({});
-                          }}
-                        >
-                          Retry Quiz
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                <Button onClick={handleQuizSubmit} className="w-full bg-[#002147]">Submit Quiz</Button>
+                {quizScore !== null && <div className="mt-4 text-center font-bold text-xl">Score: {quizScore} / 3</div>}
             </CardContent>
           </Card>
         </div>
       )}
 
+      {/* --- TAB: DOWNLOADS (DEMO DATA) --- */}
       {currentTab === 'downloads' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl text-[#002147] mb-1">Downloads & Resources</h2>
-            <p className="text-gray-600">Download guides, posters, and informational materials</p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              { title: 'DBT Complete Guide', type: 'PDF', size: '2.4 MB', icon: FileText },
-              { title: 'Aadhaar Linking Steps', type: 'PDF', size: '1.8 MB', icon: FileText },
-              { title: 'DBT Awareness Poster', type: 'JPG', size: '850 KB', icon: Download },
-              { title: 'Bank Account Verification Form', type: 'PDF', size: '450 KB', icon: FileText },
-              { title: 'Scholarship Application Guide', type: 'PDF', size: '3.2 MB', icon: FileText },
-              { title: 'DBT Infographic', type: 'PNG', size: '1.2 MB', icon: Download },
-            ].map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start gap-4">
-                      <div className="bg-[#E6F0FF] p-3 rounded">
-                        <Icon className="w-6 h-6 text-[#002147]" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="mb-1">{item.title}</h3>
-                        <div className="text-sm text-gray-600 mb-3">
-                          {item.type} • {item.size}
-                        </div>
-                        <Button variant="outline" className="w-full">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+           <div className="grid md:grid-cols-2 gap-4">
+              {['DBT Guide 2025.pdf', 'Aadhaar Linking Manual.pdf', 'Bank Form.pdf', 'FAQs.pdf'].map((file) => (
+                  <Card key={file} className="flex items-center p-4 gap-4">
+                      <FileText className="w-8 h-8 text-red-500" />
+                      <div className="flex-1 font-medium">{file}</div>
+                      <Button variant="outline" size="sm"><Download className="w-4 h-4"/></Button>
+                  </Card>
+              ))}
+           </div>
         </div>
       )}
 
+      {/* --- TAB: SUPPORT (DEMO DATA) --- */}
       {currentTab === 'support' && (
         <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl text-[#002147] mb-1">Support & Help</h2>
-            <p className="text-gray-600">Get assistance with DBT-related queries</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <HelpCircle className="w-5 h-5" />
-                  Helpdesk
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">Call our toll-free helpline for immediate assistance</p>
-                <div className="font-medium text-lg text-[#002147]">1800-11-8004</div>
-                <div className="text-sm text-gray-600">Available 9 AM - 6 PM</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Email Support
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">Send us your queries via email</p>
-                <div className="font-medium text-[#002147]">support@dbtportal.gov.in</div>
-                <div className="text-sm text-gray-600">Response within 24 hours</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Home className="w-5 h-5" />
-                  Visit Center
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-gray-600 mb-4">Visit your nearest Common Service Center</p>
-                <Button variant="outline" className="w-full">
-                  Find Centers
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Raise a Ticket</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-600">Issue Category</label>
-                  <select className="w-full mt-1 p-2 border rounded">
-                    <option>Select category</option>
-                    <option>DBT Status Issue</option>
-                    <option>Bank Linking Problem</option>
-                    <option>Aadhaar Linking Issue</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">Describe your issue</label>
-                  <textarea className="w-full mt-1 p-2 border rounded h-32" placeholder="Explain your problem in detail..."></textarea>
-                </div>
-                <Button className="bg-[#002147] hover:bg-[#003366]">Submit Ticket</Button>
-              </div>
-            </CardContent>
-          </Card>
+           <div className="grid md:grid-cols-2 gap-6">
+              <Card><CardHeader><CardTitle>Helpdesk</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold text-[#002147]">1800-11-8004</p></CardContent></Card>
+              <Card><CardHeader><CardTitle>Email</CardTitle></CardHeader><CardContent><p className="text-lg">support@dbt.gov.in</p></CardContent></Card>
+           </div>
         </div>
       )}
+
     </DashboardLayout>
   );
 }

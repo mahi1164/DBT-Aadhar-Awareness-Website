@@ -4,7 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ArrowLeft } from 'lucide-react'; // <--- Added ArrowLeft
+
+// --- IMPORTS ---
+import { sendOtp, verifyOtp } from '../../authService';
+import { supabase } from '../../supabaseClient';
 
 type Props = {
   onLoginSuccess: () => void;
@@ -12,214 +16,154 @@ type Props = {
   onNavigate: (page: string) => void;
 };
 
-// Helper function to generate a random string for CAPTCHA
-const generateCaptcha = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-};
+const generateCaptcha = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
 export default function StudentLoginPage({ onLoginSuccess, onBack, onNavigate }: Props) {
-  const [captcha, setCaptcha] = useState(generateCaptcha());
-  const [aadhaar, setAadhaar] = useState('');
+  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
+  const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
+  const [captcha, setCaptcha] = useState(generateCaptcha());
   const [captchaInput, setCaptchaInput] = useState('');
   const [tabValue, setTabValue] = useState<'aadhaar' | 'otr'>('aadhaar');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock validation: In a real app, you'd verify Aadhaar, OTP, and CAPTCHA
-    if (captchaInput.toUpperCase() === captcha) {
-      onLoginSuccess();
-    } else {
-      alert('Invalid CAPTCHA. Please try again.');
+    if (captchaInput.toUpperCase() !== captcha) {
+      alert('Invalid CAPTCHA');
       setCaptcha(generateCaptcha());
       setCaptchaInput('');
+      return;
+    }
+    if (mobile.length !== 10) { alert("Invalid Mobile"); return; }
+
+    setLoading(true);
+    const { error } = await sendOtp(mobile);
+    setLoading(false);
+
+    if (error) {
+      alert("Error: " + error.message);
+    } else {
+      alert(`OTP sent to ${mobile}`);
+      setStep('otp');
     }
   };
 
-  const loginTips = [
-    "Student/ Parent/ Legal guardian must read the instructions carefully before registration.",
-    "Student/ Parent/ Legal guardian is advised to fill all the required details carefully and check properly before submission as correction/editing will not be allowed after submission.",
-    "Any wrong/ false information may lead to rejection.",
-    "Enter correct OTR number as provided during registration. The unique identifier helps to verify identity and track application progress.",
-    "Keep your password confidential and avoid sharing it with anyone to protect your account security.",
-    "In case you forget your password, utilize the Forgot Password option to reset it.",
-    "Student/ Parent/ Legal guardian is also advised to refer to National Scholarship Portal for regular updates."
-  ];
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { user, error } = await verifyOtp(mobile, otp);
 
-  // Utility to mask Aadhaar except last 4 digits
-  const maskedAadhaar = (a: string) => {
-    const clean = a.replace(/\D/g, '');
-    if (!clean) return '-';
-    if (clean.length <= 4) return clean;
-    const last4 = clean.slice(-4);
-    return 'XXXX-XXXX-' + last4;
+    if (error) {
+      alert("Invalid OTP");
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profile && profile.role !== 'student') {
+        alert("Access Denied: Not a student account");
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+    }
+    onLoginSuccess();
   };
 
-  // Small helper for OTP display (show dots if present)
-  const maskedOtp = (o: string) => {
-    if (!o) return '-';
-    return '*'.repeat(o.length);
+  const maskedMobile = (m: string) => {
+    if (m.length < 10) return '-';
+    return '+91 ' + m.slice(0, 2) + '******' + m.slice(-2);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 sm:p-12 flex items-center justify-center">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 sm:p-12 flex items-center justify-center relative">
+      
+      {/* --- BACK TO HOME BUTTON --- */}
+      <div className="absolute top-6 left-6">
+        <Button variant="outline" onClick={onBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" /> Back to Home
+        </Button>
+      </div>
+
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mt-12">
         {/* LEFT: FORM */}
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Application Login</CardTitle>
+            <CardTitle>Student Login</CardTitle>
             <CardDescription>
               New user?{' '}
-              <button
-                type="button"
-                className="text-blue-600 hover:underline bg-transparent border-0 p-0 cursor-pointer"
-                onClick={() => onNavigate('student-registration')}
-              >
+              <button type="button" className="text-blue-600 hover:underline" onClick={() => onNavigate('student-registration')}>
                 Register yourself
               </button>
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-              <Tabs value={tabValue} onValueChange={(v: string) => setTabValue(v as 'aadhaar' | 'otr')}>
+            <Tabs value={tabValue} onValueChange={(v: string) => setTabValue(v as 'aadhaar' | 'otr')}>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="aadhaar">Login with Aadhaar</TabsTrigger>
+                <TabsTrigger value="aadhaar">Login with Mobile</TabsTrigger>
                 <TabsTrigger value="otr">Login with OTR</TabsTrigger>
               </TabsList>
 
               <TabsContent value="aadhaar">
-                <form onSubmit={handleLogin} className="space-y-6 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="aadhaar">Aadhaar No. *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="aadhaar"
-                        type="text"
-                        placeholder="Enter your Aadhaar No"
-                        value={aadhaar}
-                        onChange={(e) => setAadhaar(e.target.value)}
-                        maxLength={12}
-                        required
-                      />
-                      <Button type="button" variant="outline">Get OTP</Button>
+                {step === 'mobile' ? (
+                  <form onSubmit={handleSendOtp} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Mobile Number</Label>
+                      <div className="flex gap-2">
+                        <div className="flex items-center px-3 border rounded bg-gray-100">+91</div>
+                        <Input placeholder="99999 99999" value={mobile} maxLength={10} onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))} />
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">Enter OTP *</Label>
-                    <Input
-                      id="otp"
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      maxLength={6}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-2 border rounded-md bg-gray-100 dark:bg-gray-800">
-                      <span
-                        className="text-2xl font-bold tracking-widest select-none dark:text-white"
-                        style={{ fontFamily: 'monospace' }}
-                      >
-                        {captcha}
-                      </span>
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setCaptcha(generateCaptcha())}>
-                        <RefreshCw className="h-5 w-5" />
-                      </Button>
+                    {/* CAPTCHA */}
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center bg-gray-100 p-2 rounded">
+                        <span className="font-mono text-xl tracking-widest">{captcha}</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setCaptcha(generateCaptcha())}>
+                            <RefreshCw className="h-4 w-4" />
+                        </Button>
+                        </div>
+                        <Input placeholder="Enter Captcha" value={captchaInput} onChange={(e) => setCaptchaInput(e.target.value)} />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="captcha">Enter Captcha Code *</Label>
-                    <Input
-                      id="captcha"
-                      type="text"
-                      placeholder="Enter the code above"
-                      value={captchaInput}
-                      onChange={(e) => setCaptchaInput(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-4 pt-4">
-                    <Button type="button" variant="ghost" onClick={onBack}>Back</Button>
-                    <Button type="button" variant="ghost">Cancel</Button>
-                    <Button type="submit" className="flex-grow">Proceed</Button>
-                  </div>
-                </form>
+                    <Button type="submit" className="w-full" disabled={loading}>{loading ? "Sending..." : "Get OTP"}</Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Enter OTP sent to +91 {mobile}</Label>
+                      <Input placeholder="XXXXXX" value={otp} onChange={(e) => setOtp(e.target.value)} className="text-center text-xl tracking-widest" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={loading}>{loading ? "Verifying..." : "Login"}</Button>
+                    <button type="button" onClick={() => setStep('mobile')} className="text-sm text-blue-600 w-full text-center mt-2">Change Number</button>
+                  </form>
+                )}
               </TabsContent>
-
-              <TabsContent value="otr">
-                <div className="text-center p-8">
-                  <p>OTR Login functionality is not implemented in this demo.</p>
-                </div>
-              </TabsContent>
+              <TabsContent value="otr"><div className="p-8 text-center">OTR Login Not Implemented</div></TabsContent>
             </Tabs>
           </CardContent>
         </Card>
 
-        {/* RIGHT: LIVE PREVIEW + TIPS */}
+        {/* RIGHT: PREVIEW */}
         <div className="flex flex-col gap-6">
           <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Live Preview</CardTitle>
-              <CardDescription>Realtime view of the login details (for demo only)</CardDescription>
-            </CardHeader>
-
+            <CardHeader><CardTitle>Live Preview</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center text-2xl font-bold text-sky-700">
-                  {/* Aadhaar is numeric — show a generic user initial if empty */}
-                  {aadhaar ? aadhaar.slice(0, 1) : 'U'}
-                </div>
-
-                <div className="flex-1">
-                  <div className="text-sm text-slate-500">Login Method</div>
-                  <div className="font-medium text-slate-800 capitalize">{tabValue === 'aadhaar' ? 'Aadhaar' : 'OTR'}</div>
-
-                  <div className="mt-3 text-sm text-slate-500">Aadhaar (masked)</div>
-                  <div className="font-mono font-medium text-slate-800">{maskedAadhaar(aadhaar)}</div>
-
-                  <div className="mt-3 text-sm text-slate-500">OTP</div>
-                  <div className="font-medium text-slate-800">{maskedOtp(otp)}</div>
-
-                  <div className="mt-3 text-sm text-slate-500">CAPTCHA</div>
-                  <div className="inline-flex items-center gap-3 mt-2">
-                    <div className="px-3 py-2 rounded-md border bg-gray-100 dark:bg-gray-800 font-mono text-lg tracking-widest">{captcha}</div>
-                    <div className="text-sm text-slate-500">Enter code exactly as shown</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t">
-                <div className="text-xs text-slate-500">Tips</div>
-                <ul className="mt-2 list-disc ml-5 text-sm text-slate-700">
-                  <li>Use the <strong>Get OTP</strong> button to request an OTP.</li>
-                  <li>CAPTCHA helps prevent automated submissions — refresh if unreadable.</li>
-                  <li>All fields shown in preview are for demonstration only — do not expose real Aadhaar in screenshots.</li>
-                </ul>
-              </div>
+               <div className="flex items-center gap-4">
+                 <div className="w-20 h-20 rounded-full bg-sky-100 flex items-center justify-center text-2xl font-bold text-sky-700">U</div>
+                 <div className="flex-1">
+                   <div className="text-sm text-slate-500">Mobile</div>
+                   <div className="font-medium text-slate-800">{maskedMobile(mobile)}</div>
+                   <div className="mt-2 text-sm text-slate-500">Status</div>
+                   <div className="font-medium text-slate-800">{step === 'otp' ? 'Waiting for OTP' : 'Enter Mobile'}</div>
+                 </div>
+               </div>
             </CardContent>
           </Card>
-
-          {/* Student Login Tips Card (kept from your original UI) */}
-          <div className="hidden lg:block">
-            <Card>
-              <CardHeader>
-                <CardTitle>Student Login Tips</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ol className="list-decimal list-inside space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                  {loginTips.map((tip, index) => (
-                    <li key={index}>{tip}</li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
     </div>

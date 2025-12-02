@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '../shared/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -20,6 +20,8 @@ import {
   Clock,
   Search,
   X,
+  XCircle,
+  MessageSquare // Added for tickets
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -37,14 +39,63 @@ import {
   Legend 
 } from 'recharts';
 
+// --- IMPORT SUPABASE ---
+import { supabase } from '../../supabaseClient';
+
+// Helper for icon compatibility
+const Award = TrendingUp; 
+
 interface AdminDashboardProps {
-  onNavigate: (page: 'landing') => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [currentTab, setCurrentTab] = useState('home');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // --- REAL DATA STATES ---
+  const [realUsers, setRealUsers] = useState<any[]>([]);
+  const [realTickets, setRealTickets] = useState<any[]>([]); // <--- New State for Tickets
+  const [loading, setLoading] = useState(false);
+
+  // --- FETCH REAL DATA (Users & Tickets) ---
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      
+      // 1. Fetch Users
+      const { data: userData } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (userData) setRealUsers(userData);
+
+      // 2. Fetch Tickets
+      const { data: ticketData } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (ticketData) setRealTickets(ticketData);
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  // Filter Logic for Real Users
+  const filteredRealUsers = realUsers.filter(user => {
+    const term = searchQuery.toLowerCase();
+    const name = (user.full_name || user.panchayat_name || 'Admin').toLowerCase();
+    const role = (user.role || '').toLowerCase();
+    const id = (user.aadhaar || user.panchayat_id || user.username || '').toLowerCase();
+    return name.includes(term) || role.includes(term) || id.includes(term);
+  });
+
+
+  // --- DUMMY DATA FOR CHARTS (Visuals only) ---
   const nationalStats = {
     totalStudents: 2548920,
     dbtEnabled: 2183182,
@@ -105,8 +156,8 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         { id: 'analytics', label: 'Analytics', icon: TrendingUp },
         { id: 'users', label: 'User Management', icon: Users },
         { id: 'approvals', label: 'Approvals', icon: Shield },
+        { id: 'logs', label: 'Tickets & Logs', icon: MessageSquare }, // Renamed for clarity
         { id: 'reports', label: 'Reports', icon: Download },
-        { id: 'logs', label: 'System Logs', icon: Activity },
         { id: 'settings', label: 'Settings', icon: Settings },
       ].map((item) => {
         const Icon = item.icon;
@@ -133,9 +184,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       title="Super Admin Dashboard"
       userRole="System Administrator"
       userName="Admin Portal"
-      onNavigate={onNavigate}
+      onNavigate={onNavigate as any}
       sidebar={sidebar}
     >
+      {/* --- TAB: HOME --- */}
       {currentTab === 'home' && (
         <div className="space-y-6">
           <div className="flex items-center gap-3">
@@ -292,39 +344,10 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </div>
             </CardContent>
           </Card>
-
-          {/* Pending Actions */}
-          <Card className="border-2 border-orange-500">
-            <CardHeader className="bg-orange-50">
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-orange-600" />
-                Pending Approvals
-              </CardTitle>
-              <CardDescription>{pendingApprovals.length} items require your attention</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {pendingApprovals.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 border rounded">
-                    <div>
-                      <div className="font-medium">{item.name}</div>
-                      <div className="text-sm text-gray-600">{item.type} • {item.id} • {item.date}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">Approve</Button>
-                      <Button size="sm" variant="outline">Review</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button variant="link" className="w-full mt-4" onClick={() => setCurrentTab('approvals')}>
-                View All Pending Approvals →
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       )}
 
+      {/* --- TAB: ANALYTICS --- */}
       {currentTab === 'analytics' && (
         <div className="space-y-6">
           <div>
@@ -332,7 +355,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <p className="text-gray-600">Detailed breakdown of DBT awareness and enablement</p>
           </div>
 
-          {/* State-wise Performance Table */}
           <Card>
             <CardHeader>
               <CardTitle>State-wise DBT Scoreboard</CardTitle>
@@ -384,7 +406,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </CardContent>
           </Card>
 
-          {/* Bank-wise Disbursal Analysis */}
           <Card>
             <CardHeader>
               <CardTitle>Average Disbursal Time by Bank</CardTitle>
@@ -401,26 +422,18 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <Bar dataKey="avgTime" fill="#002147" name="Avg Time (days)" />
                 </BarChart>
               </ResponsiveContainer>
-              <div className="grid md:grid-cols-5 gap-4 mt-6">
-                {disbursalData.map((bank) => (
-                  <div key={bank.bank} className="text-center p-3 border rounded">
-                    <div className="text-sm text-gray-600">{bank.bank}</div>
-                    <div className="text-xl font-bold text-[#002147]">{bank.avgTime}d</div>
-                    <div className="text-xs text-gray-500">{bank.count.toLocaleString()} students</div>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </div>
       )}
 
+      {/* --- TAB: USERS (REAL DATA) --- */}
       {currentTab === 'users' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl text-[#002147] mb-1">User Management</h2>
-              <p className="text-gray-600">Manage institutions, panchayats, and admin users</p>
+              <p className="text-gray-600">Live Database Records from Supabase</p>
             </div>
             <Button className="bg-[#002147] hover:bg-[#003366]">
               <Users className="w-4 h-4 mr-2" />
@@ -428,89 +441,93 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </Button>
           </div>
 
-          {/* Search Bar */}
           <Card>
             <CardContent className="pt-6">
               <div className="flex gap-4">
                 <div className="flex-1 relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <Input
-                    placeholder="Search by name, type, or location..."
+                    placeholder="Search by name, type, or ID..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
-                <select className="p-2 border rounded">
-                  <option>All Types</option>
-                  <option>Institutions</option>
-                  <option>Panchayats</option>
-                  <option>Admins</option>
-                </select>
-                <select className="p-2 border rounded">
-                  <option>All States</option>
-                  <option>Uttar Pradesh</option>
-                  <option>Maharashtra</option>
-                  <option>Bihar</option>
-                </select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Users Table */}
           <Card>
             <CardHeader>
               <CardTitle>Registered Users</CardTitle>
-              <CardDescription>All active users in the system</CardDescription>
+              <CardDescription>{filteredRealUsers.length} active users found in database</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Registered</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { id: 'INST-2401', name: 'ABC College Delhi', type: 'Institution', location: 'Delhi', status: 'active', date: 'Jan 15, 2025' },
-                    { id: 'PANCH-5620', name: 'Rampur GP', type: 'Panchayat', location: 'Uttar Pradesh', status: 'active', date: 'Feb 10, 2025' },
-                    { id: 'INST-2402', name: 'XYZ University Mumbai', type: 'Institution', location: 'Maharashtra', status: 'active', date: 'Mar 5, 2025' },
-                    { id: 'PANCH-5621', name: 'Khadki GP', type: 'Panchayat', location: 'Maharashtra', status: 'active', date: 'Apr 18, 2025' },
-                  ].map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.id}</TableCell>
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{user.type}</Badge>
-                      </TableCell>
-                      <TableCell>{user.location}</TableCell>
-                      <TableCell>
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                          {user.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">{user.date}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="sm">Edit</Button>
-                          <Button variant="ghost" size="sm">Suspend</Button>
-                        </div>
-                      </TableCell>
+              {loading ? (
+                <div className="text-center p-8">Loading real users from database...</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User ID / Mobile</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Registered</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRealUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center p-8">
+                          No users found in Supabase Database.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredRealUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell className="font-medium font-mono">
+                            {user.username || user.aadhaar || user.panchayat_id || 'N/A'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {user.full_name || user.panchayat_name || 'Admin User'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {user.role?.replace('_', ' ') || 'User'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {user.district || user.state ? `${user.district || ''}, ${user.state || ''}` : 'India'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                              Active
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm">Edit</Button>
+                              <Button variant="ghost" size="sm" className="text-red-500">Suspend</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
 
+      {/* --- TAB: APPROVALS --- */}
       {currentTab === 'approvals' && (
         <div className="space-y-6">
           <div>
@@ -536,46 +553,112 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           </div>
                           <h3 className="text-lg font-medium mb-1">{request.name}</h3>
                           <div className="text-sm text-gray-600">Submitted: {request.date}</div>
-                          
-                          <div className="mt-4 p-3 bg-gray-50 rounded">
-                            <div className="grid md:grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <span className="text-gray-600">Contact:</span>
-                                <span className="ml-2">contact@example.edu.in</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Phone:</span>
-                                <span className="ml-2">+91 98765 43210</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Address:</span>
-                                <span className="ml-2">Sample Address, City</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Registration No:</span>
-                                <span className="ml-2">REG123456</span>
-                              </div>
-                            </div>
-                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex gap-3 mt-4">
-                        <Button className="bg-green-600 hover:bg-green-700 flex-1">
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Approve
-                        </Button>
-                        <Button variant="outline" className="flex-1">
-                          View Documents
-                        </Button>
-                        <Button variant="outline" className="border-red-500 text-red-500 hover:bg-red-50">
-                          Reject
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button size="sm" className="bg-green-600 hover:bg-green-700">Approve</Button>
+                          <Button size="sm" variant="outline">Review</Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* --- TAB: LOGS & TICKETS (REAL TICKET DATA) --- */}
+      {currentTab === 'logs' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl text-[#002147] mb-1">System Logs & Support Tickets</h2>
+            <p className="text-gray-600">View real-time requests from students</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Open Tickets</p>
+                    <p className="text-3xl">{realTickets.filter(t => t.status === 'open').length}</p>
+                  </div>
+                  <AlertCircle className="w-8 h-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Resolved</p>
+                    <p className="text-3xl">{realTickets.filter(t => t.status === 'resolved').length}</p>
+                  </div>
+                  <CheckCircle className="w-8 h-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-red-500">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">System Errors</p>
+                    <p className="text-3xl">0</p>
+                  </div>
+                  <XCircle className="w-8 h-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* REAL TICKETS TABLE */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Incoming Requests & Tickets</CardTitle>
+              <CardDescription>Live data from Student Dashboard</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? <p className="p-4 text-center">Loading tickets...</p> : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {realTickets.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center p-6">No tickets raised yet.</TableCell></TableRow>
+                    ) : (
+                      realTickets.map((t) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-medium">{t.user_name || 'Anonymous'}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={t.type === 'verification' ? 'border-orange-500 text-orange-600' : 'border-blue-500 text-blue-600'}>
+                              {t.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate" title={t.description}>{t.description}</TableCell>
+                          <TableCell>
+                            <Badge className={t.status === 'open' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}>
+                              {t.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-gray-500">{new Date(t.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="outline">View</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -618,178 +701,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               </Card>
             ))}
           </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Custom Report Generator</CardTitle>
-              <CardDescription>Create custom reports with specific parameters</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Report Type</label>
-                  <select className="w-full mt-1 p-2 border rounded">
-                    <option>Student Analytics</option>
-                    <option>Institutional Performance</option>
-                    <option>Geographic Distribution</option>
-                    <option>Time-based Trends</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Date Range</label>
-                  <select className="w-full mt-1 p-2 border rounded">
-                    <option>Last 30 Days</option>
-                    <option>Last Quarter</option>
-                    <option>Last 6 Months</option>
-                    <option>Current Year</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Format</label>
-                  <select className="w-full mt-1 p-2 border rounded">
-                    <option>PDF</option>
-                    <option>Excel</option>
-                    <option>CSV</option>
-                  </select>
-                </div>
-              </div>
-              <Button className="w-full bg-[#002147] hover:bg-[#003366]">
-                Generate Custom Report
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {currentTab === 'logs' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-2xl text-[#002147] mb-1">System Logs & Monitoring</h2>
-            <p className="text-gray-600">View system activities, errors, and support tickets</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Active Users</p>
-                    <p className="text-3xl">1,247</p>
-                  </div>
-                  <Activity className="w-8 h-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Open Tickets</p>
-                    <p className="text-3xl">23</p>
-                  </div>
-                  <AlertCircle className="w-8 h-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-red-500">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">System Errors</p>
-                    <p className="text-3xl">5</p>
-                  </div>
-                  <XCircle className="w-8 h-8 text-red-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent System Activities</CardTitle>
-              <CardDescription>Last 24 hours</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {[
-                  { time: '10:45 AM', action: 'User login: ABC College, Delhi', type: 'info' },
-                  { time: '10:32 AM', action: 'Report generated: State Analytics', type: 'success' },
-                  { time: '10:18 AM', action: 'New approval request: XYZ University', type: 'warning' },
-                  { time: '09:55 AM', action: 'Database backup completed', type: 'success' },
-                  { time: '09:30 AM', action: 'Failed login attempt detected', type: 'error' },
-                  { time: '09:15 AM', action: 'System maintenance completed', type: 'info' },
-                ].map((log, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        log.type === 'success' ? 'bg-green-500' :
-                        log.type === 'error' ? 'bg-red-500' :
-                        log.type === 'warning' ? 'bg-yellow-500' :
-                        'bg-blue-500'
-                      }`}></div>
-                      <span className="text-sm">{log.action}</span>
-                    </div>
-                    <span className="text-sm text-gray-500">{log.time}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Support Tickets</CardTitle>
-              <CardDescription>Recent support requests from users</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Ticket ID</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Issue</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { id: 'TKT-1001', user: 'Rampur GP', issue: 'Report generation error', priority: 'high', status: 'open' },
-                    { id: 'TKT-1002', user: 'ABC College', issue: 'CSV upload failed', priority: 'medium', status: 'in-progress' },
-                    { id: 'TKT-1003', user: 'Student Portal', issue: 'Login issues', priority: 'low', status: 'resolved' },
-                  ].map((ticket) => (
-                    <TableRow key={ticket.id}>
-                      <TableCell className="font-medium">{ticket.id}</TableCell>
-                      <TableCell>{ticket.user}</TableCell>
-                      <TableCell>{ticket.issue}</TableCell>
-                      <TableCell>
-                        <Badge className={
-                          ticket.priority === 'high' ? 'bg-red-100 text-red-800' :
-                          ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }>
-                          {ticket.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={
-                          ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                          ticket.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }>
-                          {ticket.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">Nov 13</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
         </div>
       )}
 
@@ -809,34 +720,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <label className="text-sm font-medium">Portal Name</label>
                 <Input defaultValue="DBT Awareness & Verification Portal" className="mt-1" />
               </div>
-              <div>
-                <label className="text-sm font-medium">Support Email</label>
-                <Input defaultValue="support@dbtportal.gov.in" className="mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Helpline Number</label>
-                <Input defaultValue="1800-11-8004" className="mt-1" />
-              </div>
               <Button className="bg-[#002147] hover:bg-[#003366]">Save Changes</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>System Notifications</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                { label: 'Email notifications for new registrations', checked: true },
-                { label: 'Daily system health reports', checked: true },
-                { label: 'Weekly analytics summary', checked: false },
-                { label: 'Alert on system errors', checked: true },
-              ].map((setting, index) => (
-                <div key={index} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <span className="text-sm">{setting.label}</span>
-                  <input type="checkbox" defaultChecked={setting.checked} className="w-4 h-4" />
-                </div>
-              ))}
+              <div className="border-t pt-4 mt-4">
+                 <Button variant="destructive" onClick={() => {
+                    supabase.auth.signOut();
+                    window.location.reload();
+                 }}>
+                    Log Out of Admin Console
+                 </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -844,6 +736,3 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     </DashboardLayout>
   );
 }
-
-const Award = TrendingUp;
-const XCircle = X;

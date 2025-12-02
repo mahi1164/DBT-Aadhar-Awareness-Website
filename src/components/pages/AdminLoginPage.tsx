@@ -3,33 +3,90 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { Shield } from 'lucide-react';
+import { Shield, RefreshCw } from 'lucide-react';
+
+// --- IMPORTS ---
+import { sendOtp, verifyOtp } from '../../authService';
+import { supabase } from '../../supabaseClient';
 
 export default function AdminLoginPage({ onLoginSuccess, onBack }: { onLoginSuccess: () => void; onBack: () => void }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // STATE
+  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
+  const [mobile, setMobile] = useState('');
+  const [otp, setOtp] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // CAPTCHA STATE
+  const [captcha, setCaptcha] = useState(() => Math.random().toString(36).substring(2, 8).toUpperCase());
+  const [captchaInput, setCaptchaInput] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  // --- STEP 1: SEND OTP ---
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, you would authenticate the user here
+    if (captchaInput.toUpperCase() !== captcha) {
+      alert('Invalid CAPTCHA');
+      setCaptcha(Math.random().toString(36).substring(2, 8).toUpperCase());
+      setCaptchaInput('');
+      return;
+    }
+    if (mobile.length !== 10) { alert("Invalid Mobile Number"); return; }
+
+    setLoading(true);
+    const { error } = await sendOtp(mobile);
+    setLoading(false);
+
+    if (error) {
+      alert("Error: " + error.message);
+    } else {
+      alert(`OTP sent to ${mobile} (Use 123456 for test)`);
+      setStep('otp');
+    }
+  };
+
+  // --- STEP 2: VERIFY OTP & CHECK ADMIN ROLE ---
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // A. Verify OTP
+    const { user, error } = await verifyOtp(mobile, otp);
+
+    if (error || !user) {
+      alert("Login Failed: Invalid OTP");
+      setLoading(false);
+      return;
+    }
+
+    // B. SECURITY CHECK: Is this user an Admin?
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    // If no profile found, or role is not admin -> BLOCK ACCESS
+    if (!profile || profile.role !== 'admin') {
+      alert("ACCESS DENIED: You do not have administrator privileges.");
+      await supabase.auth.signOut(); // Kick them out immediately
+      setLoading(false);
+      return;
+    }
+
+    // C. Success
     onLoginSuccess();
   };
 
-  const loginTips = [
-    "This portal is for authorized administrators only. All activities are monitored.",
-    "Use a strong, unique password for your administrator account.",
-    "Enable two-factor authentication if available for enhanced security.",
-    "Be cautious of phishing attempts. Only log in through the official portal URL.",
-    "Regularly review audit logs and user activity to ensure the integrity of the portal.",
-    "Report any suspicious activity to the security team immediately."
-  ];
-
-  // Function to mask username, showing first 3 and last 2 characters only
-  const maskedUsername = (name: string) => {
-    if (!name) return '-';
-    if (name.length <= 5) return name;
-    return name.slice(0, 3) + '***' + name.slice(-2);
+  const maskedMobile = (num: string) => {
+    if (!num || num.length < 10) return '-';
+    return num.slice(0, 2) + '******' + num.slice(-2);
   };
+
+  const loginTips = [
+    "Authorized administrators only. Activities are monitored.",
+    "Do not share your OTP with anyone.",
+    "If you lose access to your registered mobile, contact IT support immediately.",
+    "Log out immediately after finishing your administrative tasks."
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 sm:p-12 flex items-center justify-center">
@@ -42,40 +99,74 @@ export default function AdminLoginPage({ onLoginSuccess, onBack }: { onLoginSucc
             </div>
             <CardTitle>Admin Login</CardTitle>
             <CardDescription>
-              Access the administrative dashboard to manage the portal.
+              {step === 'mobile' ? 'Enter Registered Mobile Number' : 'Enter One-Time Password'}
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="flex items-center justify-between pt-4">
-                <Button type="button" variant="ghost" onClick={onBack}>Back</Button>
-                <a href="#" className="text-sm text-blue-600 hover:underline">Contact Support</a>
-                <Button type="submit">Login</Button>
-              </div>
-            </form>
+            {/* VIEW 1: MOBILE INPUT */}
+            {step === 'mobile' && (
+              <form onSubmit={handleSendOtp} className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Mobile Number</Label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center px-3 border rounded bg-gray-100">+91</div>
+                    <Input
+                      placeholder="99999 99999"
+                      value={mobile}
+                      maxLength={10}
+                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* CAPTCHA */}
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-gray-100 p-2 rounded">
+                      <span className="font-mono text-xl tracking-widest">{captcha}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setCaptcha(Math.random().toString(36).substring(2, 8).toUpperCase())}>
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Input 
+                      placeholder="Enter Captcha" 
+                      value={captchaInput}
+                      onChange={(e) => setCaptchaInput(e.target.value)}
+                      required
+                    />
+                </div>
+
+                <div className="flex items-center justify-between pt-4">
+                  <Button type="button" variant="ghost" onClick={onBack}>Back</Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading ? "Sending..." : "Get OTP"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* VIEW 2: OTP INPUT */}
+            {step === 'otp' && (
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Enter OTP sent to +91 {mobile}</Label>
+                  <Input
+                    placeholder="XXXXXX"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="text-center text-2xl tracking-[0.5em]"
+                    required
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-4">
+                  <Button type="button" variant="ghost" onClick={() => setStep('mobile')}>Change Number</Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading ? "Verifying..." : "Login"}
+                  </Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
 
@@ -84,24 +175,24 @@ export default function AdminLoginPage({ onLoginSuccess, onBack }: { onLoginSucc
           <Card className="w-full">
             <CardHeader>
               <CardTitle>Live Preview</CardTitle>
-              <CardDescription>Realtime view of the login details (for demo only)</CardDescription>
+              <CardDescription>Realtime view of the login details</CardDescription>
             </CardHeader>
 
             <CardContent>
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center text-2xl font-bold text-red-700">
-                  {username ? username.slice(0,1).toUpperCase() : 'A'}
+                  A
                 </div>
 
                 <div className="flex-1">
                   <div className="text-sm text-slate-500">Login Type</div>
-                  <div className="font-medium text-slate-800">Username</div>
+                  <div className="font-medium text-slate-800">Admin Mobile</div>
 
-                  <div className="mt-3 text-sm text-slate-500">Username (masked)</div>
-                  <div className="font-mono font-medium text-slate-800">{maskedUsername(username)}</div>
+                  <div className="mt-3 text-sm text-slate-500">Mobile (masked)</div>
+                  <div className="font-mono font-medium text-slate-800">{maskedMobile(mobile)}</div>
 
-                  <div className="mt-3 text-sm text-slate-500">Password</div>
-                  <div className="font-medium text-slate-800">{password ? '*'.repeat(password.length) : '-'}</div>
+                  <div className="mt-3 text-sm text-slate-500">Status</div>
+                  <div className="font-medium text-slate-800">{step === 'otp' ? 'Waiting for OTP...' : 'Enter Mobile'}</div>
                 </div>
               </div>
             </CardContent>
